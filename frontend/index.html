@@ -31,7 +31,7 @@
 
     <!-- Upload section -->
     <div class="panel-section">
-      <h2>ファイル</h2>
+      <h2>勤務表</h2>
 
       <!-- No file loaded -->
       <template x-if="!fileId">
@@ -71,6 +71,54 @@
             <label>シートを選択</label>
             <select x-model="selectedSheet" @change="selectSheet()">
               <template x-for="s in sheets" :key="s">
+                <option :value="s" x-text="s"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Shift mapping file section -->
+    <div class="panel-section">
+      <h2>シフト対応表</h2>
+
+      <!-- No file loaded -->
+      <template x-if="!refFileId">
+        <div>
+          <div
+            class="upload-zone"
+            @dragover.prevent="$el.classList.add('drag-over')"
+            @dragleave="$el.classList.remove('drag-over')"
+            @drop="$el.classList.remove('drag-over'); handleRefFileDrop($event)"
+            @click="$refs.refFileInput.click()"
+          >
+            <div class="icon">🔗</div>
+            <div>Excelファイルをドロップ<br>またはクリックして選択</div>
+            <div class="hint">.xlsx / .xls / .xlsm 対応</div>
+          </div>
+          <input
+            x-ref="refFileInput"
+            type="file"
+            accept=".xlsx,.xls,.xlsm,.xlsb,.ods"
+            style="display:none"
+            @change="handleRefFileInput($event)"
+          />
+        </div>
+      </template>
+
+      <!-- File loaded -->
+      <template x-if="refFileId">
+        <div>
+          <div class="file-info">
+            <span>📄</span>
+            <span class="name" x-text="refFileName"></span>
+            <button @click="clearRefFile()" title="削除">✕</button>
+          </div>
+          <div class="sheet-selector" x-show="refSheets.length > 1">
+            <label>シートを選択</label>
+            <select x-model="refSelectedSheet" @change="selectRefSheet()">
+              <template x-for="s in refSheets" :key="s">
                 <option :value="s" x-text="s"></option>
               </template>
             </select>
@@ -368,6 +416,13 @@
           <span class="tab-count" x-show="fileId" x-text="totalRows + '行'"></span>
           <span x-show="previewLoading" class="spinner" style="margin-left:4px;"></span>
         </button>
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'reference' }"
+          @click="activeTab = 'reference'"
+        >参照ファイル
+          <span class="tab-count" x-show="refFileId" x-text="refTotalRows + '行'"></span>
+        </button>
       </div>
       <div class="row-count" x-show="fileId">
         50行まで表示
@@ -439,6 +494,50 @@
             <div>左パネルからステップを追加してください</div>
           </div>
         </template>
+      </div>
+    </template>
+
+    <!-- Reference file tab -->
+    <template x-if="activeTab === 'reference'">
+      <div class="table-wrap">
+
+        <!-- アップロード前 -->
+        <template x-if="!refFileId">
+          <div class="empty-state">
+            <div class="icon">🔗</div>
+            <div>左パネルの「シフト対応表」からファイルをアップロードしてください</div>
+          </div>
+        </template>
+
+        <!-- アップロード後：テーブル -->
+        <template x-if="refFileId">
+          <div style="display:flex;flex-direction:column;height:100%;">
+            <!-- テーブル -->
+            <div style="flex:1;overflow:auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th style="color:var(--text-muted);font-style:italic;">#</th>
+                    <template x-for="col in refColumns" :key="col">
+                      <th x-text="col"></th>
+                    </template>
+                  </tr>
+                </thead>
+                <tbody>
+                  <template x-for="(row, ri) in refRows" :key="ri">
+                    <tr>
+                      <td style="color:var(--text-muted);font-size:11px;" x-text="ri + 1"></td>
+                      <template x-for="(cell, ci) in row" :key="ci">
+                        <td x-text="cell" :title="cell"></td>
+                      </template>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </template>
+
       </div>
     </template>
 

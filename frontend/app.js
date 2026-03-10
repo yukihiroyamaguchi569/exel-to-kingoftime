@@ -20,7 +20,16 @@ document.addEventListener('alpine:init', () => {
     originalRows: [],
     originalTotalRows: 0,
 
-    activeTab: 'original', // 'original' | 'transformed'
+    // 参照ファイルプレビュー（left join用）
+    refFileId: null,
+    refFileName: '',
+    refSheets: [],
+    refSelectedSheet: '',
+    refColumns: [],
+    refRows: [],
+    refTotalRows: 0,
+
+    activeTab: 'original', // 'original' | 'transformed' | 'reference'
 
     loading: false,
     previewLoading: false,
@@ -133,6 +142,90 @@ document.addEventListener('alpine:init', () => {
       this.previewRows = [];
       this.totalRows = 0;
       this.activeTab = 'original';
+    },
+
+    // ── 参照ファイル ──────────────────────────────────────────────────────────
+    async handleRefFileInput(event) {
+      const file = event.target.files?.[0];
+      if (file) await this.uploadRefFile(file);
+    },
+
+    async handleRefFileDrop(event) {
+      event.preventDefault();
+      const file = event.dataTransfer?.files?.[0];
+      if (file) await this.uploadRefFile(file);
+    },
+
+    async uploadRefFile(file) {
+      this.loading = true;
+      try {
+        const form = new FormData();
+        form.append('file', file);
+        if (this.refSelectedSheet) form.append('sheet_name', this.refSelectedSheet);
+        const res = await fetch('/upload-join-file', { method: 'POST', body: form });
+        const data = await this._handleResponse(res);
+        this.refFileId = data.file_id;
+        this.refFileName = file.name;
+        this.refSheets = data.sheets;
+        this.refSelectedSheet = data.selected_sheet;
+        this.refColumns = data.columns;
+        // プレビュー取得
+        await this.fetchRefPreview();
+        this.showToast('参照ファイルを読み込みました', 'success');
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    async fetchRefPreview() {
+      if (!this.refFileId) return;
+      try {
+        const res = await fetch('/preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file_id: this.refFileId, steps: [] }),
+        });
+        const data = await this._handleResponse(res);
+        this.refColumns = data.columns;
+        this.refRows = data.rows;
+        this.refTotalRows = data.total_rows;
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      }
+    },
+
+    async selectRefSheet() {
+      if (!this.refFileId) return;
+      this.loading = true;
+      try {
+        const form = new FormData();
+        form.append('file_id', this.refFileId);
+        form.append('sheet_name', this.refSelectedSheet);
+        const res = await fetch('/select-sheet', { method: 'POST', body: form });
+        const data = await this._handleResponse(res);
+        this.refColumns = data.columns;
+        this.refRows = data.rows;
+        this.refTotalRows = data.total_rows;
+      } catch (e) {
+        this.showToast(e.message, 'error');
+      } finally {
+        this.loading = false;
+      }
+    },
+
+    clearRefFile() {
+      if (this.refFileId) {
+        fetch(`/session/${this.refFileId}`, { method: 'DELETE' }).catch(() => {});
+      }
+      this.refFileId = null;
+      this.refFileName = '';
+      this.refSheets = [];
+      this.refSelectedSheet = '';
+      this.refColumns = [];
+      this.refRows = [];
+      this.refTotalRows = 0;
     },
 
     // ── default pipeline (convert.py と同期) ─────────────────────────────────
