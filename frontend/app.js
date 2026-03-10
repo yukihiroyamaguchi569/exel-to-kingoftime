@@ -273,6 +273,12 @@ document.addEventListener('alpine:init', () => {
           select_cols: ['パターンコード'],
           _open: false,
         },
+        // Step3: シフト列を削除
+        {
+          type: 'delete_columns',
+          columns: ['シフト'],
+          _open: false,
+        },
       ];
       await this.fetchPreview();
     },
