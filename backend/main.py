@@ -131,7 +131,7 @@ async def run(req: PipelineRequest):
         raise HTTPException(status_code=400, detail=str(e))
 
     buf = io.StringIO()
-    result.to_csv(buf, index=False)
+    result.to_csv(buf, index=False, header=False)
     buf.seek(0)
 
     return StreamingResponse(
