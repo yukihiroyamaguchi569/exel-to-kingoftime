@@ -279,6 +279,15 @@ document.addEventListener('alpine:init', () => {
           columns: ['シフト'],
           _open: false,
         },
+        // Step4: パターンコードが空の行を削除
+        {
+          type: 'delete_rows',
+          mode: 'condition',
+          column: 'パターンコード',
+          operator: 'is_null',
+          value: '',
+          _open: false,
+        },
       ];
       await this.fetchPreview();
     },
