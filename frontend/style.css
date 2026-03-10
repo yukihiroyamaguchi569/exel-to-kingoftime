@@ -461,6 +461,57 @@ label.form-label {
   color: var(--primary);
 }
 
+/* ── check results panel ─────────────────────────────────────────────────── */
+.check-results-panel {
+  margin: 0 16px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.check-results-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  color: var(--text-muted);
+  background: var(--bg);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.check-result-item {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.check-result-item:last-child { border-bottom: none; }
+
+.check-result-item.check-ok { background: #f0fdf4; }
+.check-result-item.check-warning { background: #fffbeb; }
+.check-result-item.check-error { background: #fef2f2; }
+
+.check-icon { flex-shrink: 0; }
+
+.check-label {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.check-result-item.check-ok .check-label { color: #15803d; }
+.check-result-item.check-warning .check-label { color: #b45309; }
+.check-result-item.check-error .check-label { color: #dc2626; }
+
+.check-message {
+  flex: 1;
+  color: var(--text);
+}
+
 /* ── scrollbar style ──────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -7,6 +7,7 @@ document.addEventListener('alpine:init', () => {
     sheets: [],
     selectedSheet: '',
     columns: [],
+    checkResults: [],
 
     steps: [],
 
@@ -93,6 +94,7 @@ document.addEventListener('alpine:init', () => {
         this.originalColumns = data.columns;
         this.originalRows = data.rows;
         this.originalTotalRows = data.total_rows;
+        this.checkResults = data.checks || [];
         this.steps = [];
         this.activeTab = 'original';
         await this.applyDefaultPipeline();
@@ -117,6 +119,7 @@ document.addEventListener('alpine:init', () => {
         this.originalColumns = data.columns;
         this.originalRows = data.rows;
         this.originalTotalRows = data.total_rows;
+        this.checkResults = data.checks || [];
         this.steps = [];
         this.activeTab = 'original';
         await this.applyDefaultPipeline();
@@ -136,6 +139,7 @@ document.addEventListener('alpine:init', () => {
       this.sheets = [];
       this.selectedSheet = '';
       this.columns = [];
+      this.checkResults = [];
       this.steps = [];
       this.originalColumns = [];
       this.originalRows = [];

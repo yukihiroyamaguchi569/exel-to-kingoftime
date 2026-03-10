@@ -79,6 +79,18 @@
       </template>
     </div>
 
+    <!-- Check results panel -->
+    <div class="check-results-panel" x-show="fileId && checkResults.length">
+      <div class="check-results-title">チェック結果</div>
+      <template x-for="(item, i) in checkResults" :key="i">
+        <div class="check-result-item" :class="'check-' + item.type">
+          <span class="check-icon" x-text="item.type === 'ok' ? '✅' : item.type === 'warning' ? '⚠️' : '❌'"></span>
+          <span class="check-label" x-text="item.label + ': '"></span>
+          <span class="check-message" x-text="item.message"></span>
+        </div>
+      </template>
+    </div>
+
     <!-- Shift mapping file section -->
     <div class="panel-section">
       <h2>シフト対応表</h2>

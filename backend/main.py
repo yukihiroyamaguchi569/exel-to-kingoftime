@@ -1,6 +1,7 @@
 """FastAPI application: API routes + static file serving."""
 from __future__ import annotations
 import io
+import re
 import sys
 from pathlib import Path
 
@@ -27,6 +28,74 @@ PREVIEW_ROWS = 50
 
 
 # ── utility ───────────────────────────────────────────────────────────────────
+
+def validate_shift_data(df: pd.DataFrame) -> list[dict]:
+    """Validate a shift table DataFrame and return a list of check results."""
+    checks = []
+
+    # 1. 空チェック
+    if len(df) == 0:
+        checks.append({"type": "error", "label": "データ行", "message": "シートにデータ行がありません"})
+        return checks  # 以降のチェックは意味がないので早期リターン
+    if len(df.columns) == 0:
+        checks.append({"type": "error", "label": "列", "message": "シートに列がありません"})
+        return checks
+
+    # 2. 列数チェック（28〜32列が期待値）
+    n_cols = len(df.columns)
+    if 28 <= n_cols <= 32:
+        checks.append({"type": "ok", "label": "列数", "message": f"{n_cols}列（問題なし）"})
+    else:
+        checks.append({"type": "warning", "label": "列数", "message": f"{n_cols}列（シフト表は28〜32列が期待値です）"})
+
+    # 3. 列ヘッダー日付チェック（2列目以降）
+    header_cols = list(df.columns)[1:]
+    date_count = 0
+    for col in header_cols:
+        col_str = str(col).strip()
+        # 1〜31の整数チェック
+        try:
+            val = int(float(col_str))
+            if 1 <= val <= 31:
+                date_count += 1
+                continue
+        except (ValueError, TypeError):
+            pass
+        # YYYY/MM/DD形式チェック
+        if re.match(r'^\d{4}/\d{1,2}/\d{1,2}$', col_str):
+            date_count += 1
+
+    total_header = len(header_cols)
+    if total_header > 0:
+        ratio = date_count / total_header
+        if ratio >= 0.5:
+            checks.append({"type": "ok", "label": "列ヘッダー", "message": f"日付らしい値を確認（{date_count}/{total_header}列）"})
+        else:
+            checks.append({"type": "warning", "label": "列ヘッダー", "message": f"日付らしい列が少ない（{date_count}/{total_header}列）"})
+    else:
+        checks.append({"type": "warning", "label": "列ヘッダー", "message": "2列目以降の列がありません"})
+
+    # 4. 最初の列（職員番号列）チェック
+    first_col = df.iloc[:, 0]
+    total_cells = len(first_col)
+
+    # 空セル数
+    empty_count = first_col.isna().sum() + (first_col.astype(str).str.strip() == '').sum()
+    if empty_count > 0:
+        checks.append({"type": "warning", "label": "職員番号列", "message": f"空セルが{int(empty_count)}件あります"})
+    else:
+        checks.append({"type": "ok", "label": "職員番号列", "message": "空セルなし"})
+
+    # 2〜4桁の数字（職員番号）の割合
+    num_match = first_col.astype(str).str.strip().apply(lambda x: bool(re.match(r'^\d{2,4}$', x))).sum()
+    num_ratio = num_match / total_cells if total_cells > 0 else 0
+    if num_ratio >= 0.9:
+        checks.append({"type": "ok", "label": "職員番号列の値", "message": f"2〜4桁の値を確認（{int(num_match)}/{total_cells}件）"})
+    else:
+        checks.append({"type": "warning", "label": "職員番号列の値", "message": f"2〜4桁の値が少ない（{int(num_match)}/{total_cells}件）"})
+
+    return checks
+
 
 def _df_to_preview(df: pd.DataFrame) -> dict:
     preview = df.head(PREVIEW_ROWS).fillna("").astype(str)
@@ -60,6 +129,7 @@ async def upload_file(file: UploadFile = File(...)):
         "file_id": file_id,
         "sheets": sheets,
         "selected_sheet": first_sheet,
+        "checks": validate_shift_data(df),
         **_df_to_preview(df),
     }
 
@@ -95,6 +165,7 @@ async def select_sheet(file_id: str = Form(...), sheet_name: str = Form(...)):
     return {
         "file_id": file_id,
         "selected_sheet": sheet_name,
+        "checks": validate_shift_data(df),
         **_df_to_preview(df),
     }
 
