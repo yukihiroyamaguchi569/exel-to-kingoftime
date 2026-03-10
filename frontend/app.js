@@ -43,6 +43,8 @@ document.addEventListener('alpine:init', () => {
       { value: 'delete_columns',  label: '列削除' },
       { value: 'unpivot',         label: 'アンピボット (melt)' },
       { value: 'left_join',       label: 'Left Join' },
+      { value: 'prepend_yearmonth', label: '年月プレフィックス' },
+      { value: 'zero_pad',        label: 'ゼロパディング' },
       { value: 'filter_rows',     label: '行フィルター' },
       { value: 'reorder_columns', label: '列並び替え' },
     ],
@@ -259,7 +261,6 @@ document.addEventListener('alpine:init', () => {
           value_vars: [],      // 空 = 残り全列
           var_name: '日付',
           value_name: 'シフト',
-          _open: false,
         },
         // Step2: シフト対応表をleft join（シフト列 → シフト名、パターンコードを取得）
         {
@@ -271,13 +272,11 @@ document.addEventListener('alpine:init', () => {
           left_on: 'シフト',
           right_on: 'シフト名',
           select_cols: ['パターンコード'],
-          _open: false,
         },
         // Step3: シフト列を削除
         {
           type: 'delete_columns',
           columns: ['シフト'],
-          _open: false,
         },
         // Step4: パターンコードが空の行を削除
         {
@@ -286,7 +285,35 @@ document.addEventListener('alpine:init', () => {
           column: 'パターンコード',
           operator: 'is_null',
           value: '',
-          _open: false,
+        },
+        // Step5: 列を日付・職員番号・パターンコードの順に並べ替え
+        {
+          type: 'reorder_columns',
+          order: ['日付', idCol, 'パターンコード'],
+        },
+        // Step6: 日付を2桁にゼロパディング
+        {
+          type: 'zero_pad',
+          column: '日付',
+          width: 2,
+        },
+        // Step7: 職員番号を3桁にゼロパディング
+        {
+          type: 'zero_pad',
+          column: idCol,
+          width: 3,
+        },
+        // Step8: パターンコードを4桁にゼロパディング
+        {
+          type: 'zero_pad',
+          column: 'パターンコード',
+          width: 4,
+        },
+        // Step9: 日付に年月6桁をprefixとして付加（デフォルト: 来月）
+        {
+          type: 'prepend_yearmonth',
+          column: '日付',
+          ...this._nextMonth(),
         },
       ];
       await this.fetchPreview();
@@ -307,11 +334,13 @@ document.addEventListener('alpine:init', () => {
     },
 
     _defaultStep(type) {
-      const base = { type, _open: true };
+      const base = { type };
       if (type === 'delete_rows')     return { ...base, mode: 'index_range', start: 0, end: 1, column: '', operator: '==', value: '' };
       if (type === 'delete_columns')  return { ...base, columns: [] };
       if (type === 'unpivot')         return { ...base, id_vars: [], value_vars: [], var_name: 'variable', value_name: 'value' };
       if (type === 'left_join')       return { ...base, join_file_id: '', join_file_name: '', join_sheets: [], join_columns: [], left_on: '', right_on: '', select_cols: [] };
+      if (type === 'prepend_yearmonth') return { ...base, column: this.previewColumns[0] || '', ...this._nextMonth() };
+      if (type === 'zero_pad')        return { ...base, column: this.previewColumns[0] || '', width: 2 };
       if (type === 'filter_rows')     return { ...base, column: this.columns[0] || '', operator: '==', value: '' };
       if (type === 'reorder_columns') return { ...base, order: [...this.previewColumns] };
       return base;
@@ -478,5 +507,17 @@ document.addEventListener('alpine:init', () => {
 
     // ── drag over helper ──────────────────────────────────────────────────────
     dragOver(event) { event.preventDefault(); },
+
+    // ── utilities ─────────────────────────────────────────────────────────────
+    _nextMonth() {
+      const d = new Date();
+      d.setMonth(d.getMonth() + 1);
+      return { year: d.getFullYear(), month: d.getMonth() + 1 };
+    },
+
+    yearOptions() {
+      const y = new Date().getFullYear();
+      return [y - 1, y, y + 1, y + 2];
+    },
   }));
 });

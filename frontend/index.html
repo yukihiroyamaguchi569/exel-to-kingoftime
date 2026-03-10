@@ -138,14 +138,14 @@
       <template x-for="(step, idx) in steps" :key="idx">
         <div class="step-card">
           <!-- Step header -->
-          <div class="step-header" @click="step._open = !step._open">
+          <div class="step-header">
             <span class="step-badge" x-text="idx + 1"></span>
             <span class="step-title" x-text="stepLabel(step.type)"></span>
             <button class="step-del" @click.stop="removeStep(idx)" title="削除">✕</button>
           </div>
 
-          <!-- Step body (collapsible) -->
-          <div class="step-body" x-show="step._open" x-collapse>
+          <!-- Step body -->
+          <div class="step-body">
 
             <!-- ── delete_rows ───────────────────────────────────────── -->
             <template x-if="step.type === 'delete_rows'">
@@ -309,6 +309,59 @@
                       <option :value="c" x-text="c"></option>
                     </template>
                   </select>
+                </div>
+              </div>
+            </template>
+
+            <!-- ── prepend_yearmonth ─────────────────────────────────── -->
+            <template x-if="step.type === 'prepend_yearmonth'">
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="form-row">
+                  <label class="form-label">列</label>
+                  <select x-model="step.column" @change="schedulePreview()">
+                    <template x-for="c in previewColumns" :key="c">
+                      <option :value="c" x-text="c"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="form-row-inline">
+                  <div class="form-row">
+                    <label class="form-label">年</label>
+                    <select x-model.number="step.year" @change="schedulePreview()">
+                      <template x-for="y in yearOptions()" :key="y">
+                        <option :value="y" x-text="y + '年'"></option>
+                      </template>
+                    </select>
+                  </div>
+                  <div class="form-row">
+                    <label class="form-label">月</label>
+                    <select x-model.number="step.month" @change="schedulePreview()">
+                      <template x-for="m in [1,2,3,4,5,6,7,8,9,10,11,12]" :key="m">
+                        <option :value="m" x-text="m + '月'"></option>
+                      </template>
+                    </select>
+                  </div>
+                </div>
+                <div style="font-size:12px;color:var(--text-muted);">
+                  プレフィックス: <strong x-text="String(step.year).padStart(4,'0') + String(step.month).padStart(2,'0')"></strong>
+                </div>
+              </div>
+            </template>
+
+            <!-- ── zero_pad ──────────────────────────────────────────── -->
+            <template x-if="step.type === 'zero_pad'">
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="form-row">
+                  <label class="form-label">列</label>
+                  <select x-model="step.column" @change="schedulePreview()">
+                    <template x-for="c in previewColumns" :key="c">
+                      <option :value="c" x-text="c"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">桁数</label>
+                  <input type="number" x-model.number="step.width" min="1" max="20" @input="schedulePreview()" />
                 </div>
               </div>
             </template>

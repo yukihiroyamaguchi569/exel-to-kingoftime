@@ -36,6 +36,19 @@ class LeftJoinStep(BaseModel):
     select_cols: list[str] = Field(default_factory=list)
 
 
+class PrependYearMonthStep(BaseModel):
+    type: Literal["prepend_yearmonth"] = "prepend_yearmonth"
+    column: str = ""
+    year: int = 2024
+    month: int = 1
+
+
+class ZeroPadStep(BaseModel):
+    type: Literal["zero_pad"] = "zero_pad"
+    column: str = ""
+    width: int = 2
+
+
 class FilterRowsStep(BaseModel):
     type: Literal["filter_rows"] = "filter_rows"
     column: str = ""
@@ -54,6 +67,8 @@ PipelineStep = Annotated[
         DeleteColumnsStep,
         UnpivotStep,
         LeftJoinStep,
+        PrependYearMonthStep,
+        ZeroPadStep,
         FilterRowsStep,
         ReorderColumnsStep,
     ],

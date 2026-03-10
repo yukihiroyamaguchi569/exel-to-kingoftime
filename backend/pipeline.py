@@ -6,6 +6,8 @@ from models import (
     DeleteColumnsStep,
     UnpivotStep,
     LeftJoinStep,
+    PrependYearMonthStep,
+    ZeroPadStep,
     FilterRowsStep,
     ReorderColumnsStep,
     PipelineStep,
@@ -22,6 +24,10 @@ def apply_step(df: pd.DataFrame, step: PipelineStep) -> pd.DataFrame:
         return _unpivot(df, step)
     elif isinstance(step, LeftJoinStep):
         return _left_join(df, step)
+    elif isinstance(step, PrependYearMonthStep):
+        return _prepend_yearmonth(df, step)
+    elif isinstance(step, ZeroPadStep):
+        return _zero_pad(df, step)
     elif isinstance(step, FilterRowsStep):
         return _filter_rows(df, step)
     elif isinstance(step, ReorderColumnsStep):
@@ -85,6 +91,23 @@ def _left_join(df: pd.DataFrame, step: LeftJoinStep) -> pd.DataFrame:
     if step.right_on != step.left_on and step.right_on in result.columns:
         result = result.drop(columns=[step.right_on])
     return result
+
+
+def _prepend_yearmonth(df: pd.DataFrame, step: PrependYearMonthStep) -> pd.DataFrame:
+    if step.column not in df.columns:
+        return df
+    df = df.copy()
+    prefix = f"{step.year:04d}{step.month:02d}"
+    df[step.column] = prefix + df[step.column].astype(str)
+    return df
+
+
+def _zero_pad(df: pd.DataFrame, step: ZeroPadStep) -> pd.DataFrame:
+    if step.column not in df.columns:
+        return df
+    df = df.copy()
+    df[step.column] = df[step.column].astype(str).str.zfill(step.width)
+    return df
 
 
 def _filter_rows(df: pd.DataFrame, step: FilterRowsStep) -> pd.DataFrame:
