@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Excel → CSV パイプライン</title>
+  <link rel="stylesheet" href="style.css" />
+  <!-- Alpine.js -->
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <!-- Sortable.js -->
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <!-- app logic -->
+  <script src="app.js"></script>
+</head>
+<body x-data="app">
+
+<!-- ═══════════════════════ HEADER ═══════════════════════════════════════ -->
+<header>
+  <div>
+    <h1>Excel → CSV パイプライン</h1>
+    <div class="subtitle">変換操作をパイプラインで組み立て、CSVとして書き出します</div>
+  </div>
+  <span x-show="loading || previewLoading" class="spinner" style="margin-left:auto"></span>
+</header>
+
+<!-- ═══════════════════════ MAIN LAYOUT ══════════════════════════════════ -->
+<div class="main-layout">
+
+  <!-- ─────────────── LEFT PANEL ─────────────────────────────────────── -->
+  <div class="left-panel">
+
+    <!-- Upload section -->
+    <div class="panel-section">
+      <h2>ファイル</h2>
+
+      <!-- No file loaded -->
+      <template x-if="!fileId">
+        <div>
+          <div
+            class="upload-zone"
+            @dragover.prevent="$el.classList.add('drag-over')"
+            @dragleave="$el.classList.remove('drag-over')"
+            @drop="$el.classList.remove('drag-over'); handleFileDrop($event)"
+            @click="$refs.fileInput.click()"
+          >
+            <div class="icon">📂</div>
+            <div>Excelファイルをドロップ<br>またはクリックして選択</div>
+            <div class="hint">.xlsx / .xls / .xlsm 対応</div>
+          </div>
+          <input
+            x-ref="fileInput"
+            type="file"
+            accept=".xlsx,.xls,.xlsm,.xlsb,.ods"
+            style="display:none"
+            @change="handleFileInput($event)"
+          />
+        </div>
+      </template>
+
+      <!-- File loaded -->
+      <template x-if="fileId">
+        <div>
+          <div class="file-info">
+            <span>📄</span>
+            <span class="name" x-text="fileName"></span>
+            <button @click="clearFile()" title="削除">✕</button>
+          </div>
+
+          <!-- Sheet selector (shown only when multiple sheets) -->
+          <div class="sheet-selector" x-show="sheets.length > 1">
+            <label>シートを選択</label>
+            <select x-model="selectedSheet" @change="selectSheet()">
+              <template x-for="s in sheets" :key="s">
+                <option :value="s" x-text="s"></option>
+              </template>
+            </select>
+          </div>
+        </div>
+      </template>
+    </div>
+
+    <!-- Pipeline steps -->
+    <div class="steps-list">
+      <template x-if="steps.length === 0">
+        <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px 0;">
+          ステップを追加して変換を始めましょう
+        </div>
+      </template>
+
+      <template x-for="(step, idx) in steps" :key="idx">
+        <div class="step-card">
+          <!-- Step header -->
+          <div class="step-header" @click="step._open = !step._open">
+            <span class="step-badge" x-text="idx + 1"></span>
+            <span class="step-title" x-text="stepLabel(step.type)"></span>
+            <button class="step-del" @click.stop="removeStep(idx)" title="削除">✕</button>
+          </div>
+
+          <!-- Step body (collapsible) -->
+          <div class="step-body" x-show="step._open" x-collapse>
+
+            <!-- ── delete_rows ───────────────────────────────────────── -->
+            <template x-if="step.type === 'delete_rows'">
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="form-row">
+                  <label class="form-label">モード</label>
+                  <select x-model="step.mode" @change="schedulePreview()">
+                    <option value="index_range">行番号の範囲</option>
+                    <option value="condition">条件</option>
+                  </select>
+                </div>
+
+                <!-- index_range -->
+                <template x-if="step.mode === 'index_range'">
+                  <div class="form-row-inline">
+                    <div class="form-row">
+                      <label class="form-label">開始 (0始まり)</label>
+                      <input type="number" x-model.number="step.start" min="0" @input="schedulePreview()" />
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label">終了 (exclusive)</label>
+                      <input type="number" x-model.number="step.end" min="1" @input="schedulePreview()" />
+                    </div>
+                  </div>
+                </template>
+
+                <!-- condition -->
+                <template x-if="step.mode === 'condition'">
+                  <div style="display:flex;flex-direction:column;gap:6px;">
+                    <div class="form-row">
+                      <label class="form-label">列</label>
+                      <select x-model="step.column" @change="schedulePreview()">
+                        <template x-for="c in previewColumns" :key="c">
+                          <option :value="c" x-text="c"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <div class="form-row">
+                      <label class="form-label">演算子</label>
+                      <select x-model="step.operator" @change="schedulePreview()">
+                        <template x-for="op in operators" :key="op.value">
+                          <option :value="op.value" x-text="op.label"></option>
+                        </template>
+                      </select>
+                    </div>
+                    <template x-if="!['is_null','is_not_null'].includes(step.operator)">
+                      <div class="form-row">
+                        <label class="form-label">値</label>
+                        <input type="text" x-model="step.value" @input="schedulePreview()" placeholder="値を入力" />
+                      </div>
+                    </template>
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- ── delete_columns ────────────────────────────────────── -->
+            <template x-if="step.type === 'delete_columns'">
+              <div>
+                <label class="form-label" style="margin-bottom:6px;">削除する列を選択</label>
+                <div class="check-list">
+                  <template x-for="c in previewColumns" :key="c">
+                    <label>
+                      <input
+                        type="checkbox"
+                        :checked="step.columns.includes(c)"
+                        @change="toggleColumn(step, c)"
+                      />
+                      <span x-text="c"></span>
+                    </label>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+            <!-- ── unpivot ───────────────────────────────────────────── -->
+            <template x-if="step.type === 'unpivot'">
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div>
+                  <label class="form-label">ID列 (固定する列)</label>
+                  <div class="check-list">
+                    <template x-for="c in previewColumns" :key="c">
+                      <label>
+                        <input
+                          type="checkbox"
+                          :checked="step.id_vars.includes(c)"
+                          @change="toggleIdVar(step, c)"
+                        />
+                        <span x-text="c"></span>
+                      </label>
+                    </template>
+                  </div>
+                </div>
+                <div>
+                  <label class="form-label">値列 (展開する列、未選択で残り全て)</label>
+                  <div class="check-list">
+                    <template x-for="c in previewColumns" :key="c">
+                      <label>
+                        <input
+                          type="checkbox"
+                          :checked="step.value_vars.includes(c)"
+                          @change="toggleValueVar(step, c)"
+                        />
+                        <span x-text="c"></span>
+                      </label>
+                    </template>
+                  </div>
+                </div>
+                <div class="form-row-inline">
+                  <div class="form-row">
+                    <label class="form-label">変数列名</label>
+                    <input type="text" x-model="step.var_name" @input="schedulePreview()" />
+                  </div>
+                  <div class="form-row">
+                    <label class="form-label">値列名</label>
+                    <input type="text" x-model="step.value_name" @input="schedulePreview()" />
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <!-- ── left_join ─────────────────────────────────────────── -->
+            <template x-if="step.type === 'left_join'">
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <template x-if="!step.join_file_id">
+                  <div>
+                    <label class="form-label">結合ファイル</label>
+                    <label class="inline-upload">
+                      📎 Excelファイルを選択
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls,.xlsm,.xlsb,.ods"
+                        style="display:none"
+                        @change="uploadJoinFile(step, $event)"
+                      />
+                    </label>
+                  </div>
+                </template>
+                <template x-if="step.join_file_id">
+                  <div class="file-info" style="font-size:12px;">
+                    <span>📄</span>
+                    <span class="name" x-text="step.join_file_name || step.join_file_id"></span>
+                    <button @click="step.join_file_id=''; step.join_file_name=''; step.join_columns=[]; schedulePreview()">✕</button>
+                  </div>
+                </template>
+
+                <div class="form-row">
+                  <label class="form-label">左テーブルの結合キー列</label>
+                  <select x-model="step.left_on" @change="schedulePreview()">
+                    <option value="">-- 選択 --</option>
+                    <template x-for="c in previewColumns" :key="c">
+                      <option :value="c" x-text="c"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">右テーブルの結合キー列</label>
+                  <select x-model="step.right_on" @change="schedulePreview()">
+                    <option value="">-- 選択 --</option>
+                    <template x-for="c in (step.join_columns || [])" :key="c">
+                      <option :value="c" x-text="c"></option>
+                    </template>
+                  </select>
+                </div>
+              </div>
+            </template>
+
+            <!-- ── filter_rows ───────────────────────────────────────── -->
+            <template x-if="step.type === 'filter_rows'">
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div class="form-row">
+                  <label class="form-label">列</label>
+                  <select x-model="step.column" @change="schedulePreview()">
+                    <template x-for="c in previewColumns" :key="c">
+                      <option :value="c" x-text="c"></option>
+                    </template>
+                  </select>
+                </div>
+                <div class="form-row">
+                  <label class="form-label">演算子</label>
+                  <select x-model="step.operator" @change="schedulePreview()">
+                    <template x-for="op in operators" :key="op.value">
+                      <option :value="op.value" x-text="op.label"></option>
+                    </template>
+                  </select>
+                </div>
+                <template x-if="!['is_null','is_not_null'].includes(step.operator)">
+                  <div class="form-row">
+                    <label class="form-label">値</label>
+                    <input type="text" x-model="step.value" @input="schedulePreview()" placeholder="値を入力" />
+                  </div>
+                </template>
+              </div>
+            </template>
+
+            <!-- ── reorder_columns ───────────────────────────────────── -->
+            <template x-if="step.type === 'reorder_columns'">
+              <div>
+                <label class="form-label" style="margin-bottom:6px;">ドラッグして順序を変更</label>
+                <button class="btn btn-ghost btn-sm" style="margin-bottom:6px;width:100%;" @click="syncReorderColumns(step); schedulePreview()">
+                  現在の列一覧で更新
+                </button>
+                <div
+                  :id="'sortable-' + idx"
+                  x-init="initSortable(idx)"
+                >
+                  <template x-for="(col, ci) in step.order" :key="col">
+                    <div class="sortable-item">
+                      <span class="drag-handle">⠿</span>
+                      <span x-text="col" style="flex:1;font-size:12px;"></span>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </template>
+
+          </div><!-- /step-body -->
+        </div><!-- /step-card -->
+      </template>
+    </div><!-- /steps-list -->
+
+    <!-- Add step -->
+    <div class="add-step-area">
+      <select x-model="selectedStepType" style="flex:1;">
+        <template x-for="st in stepTypes" :key="st.value">
+          <option :value="st.value" x-text="st.label"></option>
+        </template>
+      </select>
+      <button
+        class="btn btn-primary btn-sm"
+        :disabled="!fileId"
+        @click="addStep()"
+      >＋ 追加</button>
+    </div>
+
+    <!-- Export action -->
+    <div class="actions">
+      <button
+        class="btn btn-success"
+        style="flex:1;"
+        :disabled="!fileId || loading"
+        @click="exportCSV()"
+      >
+        ⬇ CSV書き出し
+      </button>
+    </div>
+
+  </div><!-- /left-panel -->
+
+  <!-- ─────────────── RIGHT PANEL ────────────────────────────────────── -->
+  <div class="right-panel">
+
+    <div class="preview-header">
+      <h2>プレビュー</h2>
+      <div class="row-count" x-show="fileId">
+        <span x-text="totalRows"></span> 行中
+        <span x-text="Math.min(50, totalRows)"></span> 行を表示
+        <span x-show="previewLoading" class="spinner" style="margin-left:6px;"></span>
+      </div>
+    </div>
+
+    <!-- Empty state -->
+    <template x-if="!fileId">
+      <div class="empty-state">
+        <div class="icon">📊</div>
+        <div>Excelファイルをアップロードするとプレビューが表示されます</div>
+      </div>
+    </template>
+
+    <!-- Table -->
+    <template x-if="fileId && previewColumns.length">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="color:var(--text-muted);font-style:italic;">#</th>
+              <template x-for="col in previewColumns" :key="col">
+                <th x-text="col"></th>
+              </template>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="(row, ri) in previewRows" :key="ri">
+              <tr>
+                <td style="color:var(--text-muted);font-size:11px;" x-text="ri + 1"></td>
+                <template x-for="(cell, ci) in row" :key="ci">
+                  <td x-text="cell" :title="cell"></td>
+                </template>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
+    </template>
+
+  </div><!-- /right-panel -->
+</div><!-- /main-layout -->
+
+<!-- ═══════════════════════ TOAST CONTAINER ══════════════════════════════ -->
+<div class="toast-container">
+  <template x-for="t in toasts" :key="t.id">
+    <div class="toast" :class="'toast-' + t.type" x-text="t.message"></div>
+  </template>
+</div>
+
+</body>
+</html>
