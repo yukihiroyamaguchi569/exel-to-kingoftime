@@ -33,6 +33,7 @@ class LeftJoinStep(BaseModel):
     join_file_id: str = ""
     left_on: str = ""
     right_on: str = ""
+    select_cols: list[str] = Field(default_factory=list)
 
 
 class FilterRowsStep(BaseModel):

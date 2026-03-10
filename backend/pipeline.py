@@ -71,12 +71,20 @@ def _unpivot(df: pd.DataFrame, step: UnpivotStep) -> pd.DataFrame:
 
 
 def _left_join(df: pd.DataFrame, step: LeftJoinStep) -> pd.DataFrame:
+    if not step.join_file_id:
+        return df
     right_df = session_store.get_df(step.join_file_id)
     if right_df is None:
         raise ValueError(f"Join file not found: {step.join_file_id}")
     if not step.left_on or not step.right_on:
         raise ValueError("left_on and right_on must be specified for left_join")
-    return df.merge(right_df, left_on=step.left_on, right_on=step.right_on, how="left")
+    if step.select_cols:
+        keep = [step.right_on] + [c for c in step.select_cols if c in right_df.columns and c != step.right_on]
+        right_df = right_df[keep]
+    result = df.merge(right_df, left_on=step.left_on, right_on=step.right_on, how="left")
+    if step.right_on != step.left_on and step.right_on in result.columns:
+        result = result.drop(columns=[step.right_on])
+    return result
 
 
 def _filter_rows(df: pd.DataFrame, step: FilterRowsStep) -> pd.DataFrame:

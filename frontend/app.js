@@ -169,6 +169,15 @@ document.addEventListener('alpine:init', () => {
         this.refSheets = data.sheets;
         this.refSelectedSheet = data.selected_sheet;
         this.refColumns = data.columns;
+        // Step2のleft_joinステップに自動反映
+        const joinStep = this.steps.find(s => s.type === 'left_join' && !s.join_file_id);
+        if (joinStep) {
+          joinStep.join_file_id = data.file_id;
+          joinStep.join_file_name = file.name;
+          joinStep.join_sheets = data.sheets;
+          joinStep.join_columns = data.columns;
+          this.schedulePreview();
+        }
         // プレビュー取得
         await this.fetchRefPreview();
         this.showToast('参照ファイルを読み込みました', 'success');
@@ -217,7 +226,17 @@ document.addEventListener('alpine:init', () => {
 
     clearRefFile() {
       if (this.refFileId) {
-        fetch(`/session/${this.refFileId}`, { method: 'DELETE' }).catch(() => {});
+        const oldRefFileId = this.refFileId;
+        fetch(`/session/${oldRefFileId}`, { method: 'DELETE' }).catch(() => {});
+        // Step2のleft_joinステップのjoin_file_idをクリア
+        this.steps.forEach(s => {
+          if (s.type === 'left_join' && s.join_file_id === oldRefFileId) {
+            s.join_file_id = '';
+            s.join_file_name = '';
+            s.join_columns = [];
+          }
+        });
+        this.schedulePreview();
       }
       this.refFileId = null;
       this.refFileName = '';
@@ -240,9 +259,20 @@ document.addEventListener('alpine:init', () => {
           value_vars: [],      // 空 = 残り全列
           var_name: '日付',
           value_name: 'シフト',
-          _open: false,        // パネルは折りたたんで表示
+          _open: false,
         },
-        // step2以降はここに追加
+        // Step2: シフト対応表をleft join（シフト列 → シフト名、パターンコードを取得）
+        {
+          type: 'left_join',
+          join_file_id: this.refFileId || '',
+          join_file_name: this.refFileName || '',
+          join_sheets: this.refSheets || [],
+          join_columns: this.refColumns || [],
+          left_on: 'シフト',
+          right_on: 'シフト名',
+          select_cols: ['パターンコード'],
+          _open: false,
+        },
       ];
       await this.fetchPreview();
     },
@@ -266,7 +296,7 @@ document.addEventListener('alpine:init', () => {
       if (type === 'delete_rows')     return { ...base, mode: 'index_range', start: 0, end: 1, column: '', operator: '==', value: '' };
       if (type === 'delete_columns')  return { ...base, columns: [] };
       if (type === 'unpivot')         return { ...base, id_vars: [], value_vars: [], var_name: 'variable', value_name: 'value' };
-      if (type === 'left_join')       return { ...base, join_file_id: '', join_file_name: '', join_sheets: [], join_columns: [], left_on: '', right_on: '' };
+      if (type === 'left_join')       return { ...base, join_file_id: '', join_file_name: '', join_sheets: [], join_columns: [], left_on: '', right_on: '', select_cols: [] };
       if (type === 'filter_rows')     return { ...base, column: this.columns[0] || '', operator: '==', value: '' };
       if (type === 'reorder_columns') return { ...base, order: [...this.previewColumns] };
       return base;
