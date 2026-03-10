@@ -9,9 +9,18 @@ document.addEventListener('alpine:init', () => {
     columns: [],
 
     steps: [],
+
+    // 整形後プレビュー
     previewColumns: [],
     previewRows: [],
     totalRows: 0,
+
+    // 元ファイルプレビュー（アップロード時に保存）
+    originalColumns: [],
+    originalRows: [],
+    originalTotalRows: 0,
+
+    activeTab: 'original', // 'original' | 'transformed'
 
     loading: false,
     previewLoading: false,
@@ -70,10 +79,12 @@ document.addEventListener('alpine:init', () => {
         this.sheets = data.sheets;
         this.selectedSheet = data.selected_sheet;
         this.columns = data.columns;
-        this.previewColumns = data.columns;
-        this.previewRows = data.rows;
-        this.totalRows = data.total_rows;
+        this.originalColumns = data.columns;
+        this.originalRows = data.rows;
+        this.originalTotalRows = data.total_rows;
         this.steps = [];
+        this.activeTab = 'original';
+        await this.applyDefaultPipeline();
         this.showToast('ファイルを読み込みました', 'success');
       } catch (e) {
         this.showToast(e.message, 'error');
@@ -92,10 +103,12 @@ document.addEventListener('alpine:init', () => {
         const res = await fetch('/select-sheet', { method: 'POST', body: form });
         const data = await this._handleResponse(res);
         this.columns = data.columns;
-        this.previewColumns = data.columns;
-        this.previewRows = data.rows;
-        this.totalRows = data.total_rows;
+        this.originalColumns = data.columns;
+        this.originalRows = data.rows;
+        this.originalTotalRows = data.total_rows;
         this.steps = [];
+        this.activeTab = 'original';
+        await this.applyDefaultPipeline();
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -113,9 +126,32 @@ document.addEventListener('alpine:init', () => {
       this.selectedSheet = '';
       this.columns = [];
       this.steps = [];
+      this.originalColumns = [];
+      this.originalRows = [];
+      this.originalTotalRows = 0;
       this.previewColumns = [];
       this.previewRows = [];
       this.totalRows = 0;
+      this.activeTab = 'original';
+    },
+
+    // ── default pipeline (convert.py と同期) ─────────────────────────────────
+    async applyDefaultPipeline() {
+      // Step1: 1列目を固定してアンピボット
+      const idCol = this.columns[0];
+      if (!idCol) return;
+      this.steps = [
+        {
+          type: 'unpivot',
+          id_vars: [idCol],
+          value_vars: [],      // 空 = 残り全列
+          var_name: '日付',
+          value_name: 'シフト',
+          _open: false,        // パネルは折りたたんで表示
+        },
+        // step2以降はここに追加
+      ];
+      await this.fetchPreview();
     },
 
     // ── steps management ─────────────────────────────────────────────────────
@@ -123,6 +159,7 @@ document.addEventListener('alpine:init', () => {
       const type = this.selectedStepType;
       const step = this._defaultStep(type);
       this.steps.push(step);
+      this.activeTab = 'transformed';
       this.schedulePreview();
     },
 

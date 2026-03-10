@@ -350,12 +350,27 @@
   <!-- ─────────────── RIGHT PANEL ────────────────────────────────────── -->
   <div class="right-panel">
 
+    <!-- Tab bar -->
     <div class="preview-header">
-      <h2>プレビュー</h2>
+      <div class="tab-bar">
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'original' }"
+          @click="activeTab = 'original'"
+        >元のファイル
+          <span class="tab-count" x-show="fileId" x-text="originalTotalRows + '行'"></span>
+        </button>
+        <button
+          class="tab-btn"
+          :class="{ active: activeTab === 'transformed' }"
+          @click="activeTab = 'transformed'"
+        >整形後
+          <span class="tab-count" x-show="fileId" x-text="totalRows + '行'"></span>
+          <span x-show="previewLoading" class="spinner" style="margin-left:4px;"></span>
+        </button>
+      </div>
       <div class="row-count" x-show="fileId">
-        <span x-text="totalRows"></span> 行中
-        <span x-text="Math.min(50, totalRows)"></span> 行を表示
-        <span x-show="previewLoading" class="spinner" style="margin-left:6px;"></span>
+        50行まで表示
       </div>
     </div>
 
@@ -367,20 +382,20 @@
       </div>
     </template>
 
-    <!-- Table -->
-    <template x-if="fileId && previewColumns.length">
+    <!-- Original table -->
+    <template x-if="fileId && activeTab === 'original' && originalColumns.length">
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
               <th style="color:var(--text-muted);font-style:italic;">#</th>
-              <template x-for="col in previewColumns" :key="col">
+              <template x-for="col in originalColumns" :key="col">
                 <th x-text="col"></th>
               </template>
             </tr>
           </thead>
           <tbody>
-            <template x-for="(row, ri) in previewRows" :key="ri">
+            <template x-for="(row, ri) in originalRows" :key="ri">
               <tr>
                 <td style="color:var(--text-muted);font-size:11px;" x-text="ri + 1"></td>
                 <template x-for="(cell, ci) in row" :key="ci">
@@ -390,6 +405,40 @@
             </template>
           </tbody>
         </table>
+      </div>
+    </template>
+
+    <!-- Transformed table -->
+    <template x-if="fileId && activeTab === 'transformed'">
+      <div class="table-wrap">
+        <template x-if="previewColumns.length">
+          <table>
+            <thead>
+              <tr>
+                <th style="color:var(--text-muted);font-style:italic;">#</th>
+                <template x-for="col in previewColumns" :key="col">
+                  <th x-text="col"></th>
+                </template>
+              </tr>
+            </thead>
+            <tbody>
+              <template x-for="(row, ri) in previewRows" :key="ri">
+                <tr>
+                  <td style="color:var(--text-muted);font-size:11px;" x-text="ri + 1"></td>
+                  <template x-for="(cell, ci) in row" :key="ci">
+                    <td x-text="cell" :title="cell"></td>
+                  </template>
+                </tr>
+              </template>
+            </tbody>
+          </table>
+        </template>
+        <template x-if="!previewColumns.length">
+          <div class="empty-state">
+            <div class="icon">➕</div>
+            <div>左パネルからステップを追加してください</div>
+          </div>
+        </template>
       </div>
     </template>
 
