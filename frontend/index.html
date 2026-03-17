@@ -98,6 +98,32 @@
       <!-- No file loaded -->
       <template x-if="!refFileId">
         <div>
+          <!-- 保存済み変換表セレクター -->
+          <div style="margin-bottom:8px;">
+            <button class="btn btn-ghost btn-sm" style="width:100%;"
+              @click="showSavedTablesPanel = !showSavedTablesPanel; loadSavedTablesList()">
+              保存済み変換表から選択
+              <span x-show="savedTables.length > 0" x-text="'（' + savedTables.length + '件）'"></span>
+            </button>
+          </div>
+
+          <template x-if="showSavedTablesPanel">
+            <div class="saved-tables-panel" style="margin-bottom:8px;">
+              <template x-if="savedTables.length === 0">
+                <div style="padding:12px;text-align:center;font-size:12px;color:var(--text-muted);">
+                  保存済みの変換表がありません
+                </div>
+              </template>
+              <template x-for="ct in savedTables" :key="ct.id">
+                <div class="saved-table-row">
+                  <button class="saved-table-name" @click="selectSavedTable(ct)" x-text="ct.name"></button>
+                  <span class="saved-table-meta" x-text="ct.fileName"></span>
+                  <button class="btn-icon danger" @click.stop="deleteSavedTable(ct.id)" title="削除">✕</button>
+                </div>
+              </template>
+            </div>
+          </template>
+
           <div
             class="upload-zone"
             @dragover.prevent="$el.classList.add('drag-over')"
@@ -135,6 +161,23 @@
               </template>
             </select>
           </div>
+          <!-- 保存フォーム（新規アップロード時のみ） -->
+          <template x-if="!loadedFromSaved">
+            <div class="save-table-form">
+              <input type="text" x-model="saveTableName"
+                placeholder="名前をつけて保存..."
+                style="flex:1;font-size:12px;"
+                @keyup.enter="saveCurrentRefFile()" />
+              <button class="btn btn-primary btn-sm"
+                :disabled="!saveTableName.trim() || savingTable"
+                @click="saveCurrentRefFile()">保存</button>
+            </div>
+          </template>
+          <template x-if="loadedFromSaved">
+            <div style="font-size:12px;color:var(--text-muted);margin-top:6px;">
+              ✓ 保存済み変換表から読み込み済み
+            </div>
+          </template>
         </div>
       </template>
     </div>

@@ -29,6 +29,7 @@ document.addEventListener('alpine:init', () => {
     refColumns: [],
     refRows: [],
     refTotalRows: 0,
+    refFileRaw: null,          // アップロード時のFileオブジェクトを保持
 
     activeTab: 'original', // 'original' | 'transformed' | 'reference'
 
@@ -38,6 +39,18 @@ document.addEventListener('alpine:init', () => {
 
     toasts: [],
     nextToastId: 0,
+
+    // ── 保存済み変換表 ────────────────────────────────────────────────────────
+    savedTables: [],
+    showSavedTablesPanel: false,
+    saveTableName: '',
+    savingTable: false,
+    loadedFromSaved: false,
+
+    // ── init ─────────────────────────────────────────────────────────────────
+    async init() {
+      this.loadSavedTablesList();
+    },
 
     stepTypes: [
       { value: 'delete_rows',     label: '行削除' },
@@ -172,6 +185,7 @@ document.addEventListener('alpine:init', () => {
         const data = await this._handleResponse(res);
         this.refFileId = data.file_id;
         this.refFileName = file.name;
+        this.refFileRaw = file;
         this.refSheets = data.sheets;
         this.refSelectedSheet = data.selected_sheet;
         this.refColumns = data.columns;
@@ -187,6 +201,7 @@ document.addEventListener('alpine:init', () => {
         // プレビュー取得
         await this.fetchRefPreview();
         this.showToast('参照ファイルを読み込みました', 'success');
+        this.loadedFromSaved = false;
       } catch (e) {
         this.showToast(e.message, 'error');
       } finally {
@@ -246,11 +261,93 @@ document.addEventListener('alpine:init', () => {
       }
       this.refFileId = null;
       this.refFileName = '';
+      this.refFileRaw = null;
       this.refSheets = [];
       this.refSelectedSheet = '';
       this.refColumns = [];
       this.refRows = [];
       this.refTotalRows = 0;
+      this.loadedFromSaved = false;
+    },
+
+    // ── 保存済み変換表メソッド ────────────────────────────────────────────────
+    loadSavedTablesList() {
+      try {
+        const raw = localStorage.getItem('conversionTables');
+        this.savedTables = raw ? JSON.parse(raw) : [];
+      } catch (e) {
+        this.savedTables = [];
+      }
+    },
+
+    saveCurrentRefFile() {
+      if (!this.refFileRaw || !this.saveTableName.trim()) return;
+      const name = this.saveTableName.trim();
+      if (this.savedTables.find(t => t.name === name)) {
+        alert(`「${name}」という名前の変換表はすでに保存されています`);
+        return;
+      }
+      this.savingTable = true;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const base64 = e.target.result;
+          // 5MB警告（base64は元の約1.33倍）
+          if (base64.length > 5 * 1024 * 1024) {
+            this.showToast('ファイルサイズが大きいため保存できない場合があります', 'info');
+          }
+          const entry = {
+            id: 'ct_' + Date.now(),
+            name,
+            fileName: this.refFileRaw.name,
+            base64,
+            savedAt: new Date().toISOString(),
+          };
+          const updated = [...this.savedTables, entry];
+          localStorage.setItem('conversionTables', JSON.stringify(updated));
+          this.loadSavedTablesList();
+          this.saveTableName = '';
+          this.showToast(`「${name}」を保存しました`, 'success');
+        } catch (err) {
+          this.showToast('保存に失敗しました: ' + err.message, 'error');
+        } finally {
+          this.savingTable = false;
+        }
+      };
+      reader.onerror = () => {
+        this.showToast('ファイルの読み込みに失敗しました', 'error');
+        this.savingTable = false;
+      };
+      reader.readAsDataURL(this.refFileRaw);
+    },
+
+    async selectSavedTable(ct) {
+      try {
+        // base64 → Blob → File
+        const base64Data = ct.base64.includes(',') ? ct.base64.split(',')[1] : ct.base64;
+        const binary = atob(base64Data);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        const blob = new Blob([bytes], { type: 'application/octet-stream' });
+        const file = new File([blob], ct.fileName, { type: blob.type });
+        await this.uploadRefFile(file);
+        this.loadedFromSaved = true;
+        this.showSavedTablesPanel = false;
+      } catch (e) {
+        this.showToast('変換表の読み込みに失敗しました: ' + e.message, 'error');
+      }
+    },
+
+    deleteSavedTable(id) {
+      const target = this.savedTables.find(t => t.id === id);
+      const updated = this.savedTables.filter(t => t.id !== id);
+      try {
+        localStorage.setItem('conversionTables', JSON.stringify(updated));
+        this.loadSavedTablesList();
+        if (target) this.showToast(`「${target.name}」を削除しました`, 'info');
+      } catch (e) {
+        this.showToast('削除に失敗しました', 'error');
+      }
     },
 
     // ── default pipeline (convert.py と同期) ─────────────────────────────────
