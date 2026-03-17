@@ -19,8 +19,8 @@ from pipeline import run_pipeline
 
 app = FastAPI(title="Excel→CSV Pipeline")
 
-UPLOAD_DIR = Path(__file__).parent.parent / "uploads"
-UPLOAD_DIR.mkdir(exist_ok=True)
+UPLOAD_DIR = Path("/tmp/uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
 
@@ -114,15 +114,22 @@ async def upload_file(file: UploadFile = File(...)):
     contents = await file.read()
     suffix = Path(file.filename or "upload.xlsx").suffix.lower()
     dest = UPLOAD_DIR / f"{__import__('uuid').uuid4()}{suffix}"
-    dest.write_bytes(contents)
+    try:
+        dest.write_bytes(contents)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"ファイル保存エラー: {e}")
 
-    if suffix in (".xlsx", ".xls", ".xlsm", ".xlsb", ".ods"):
-        xl = pd.ExcelFile(dest, engine="openpyxl")
+    if suffix not in (".xlsx", ".xls", ".xlsm", ".xlsb", ".ods"):
+        raise HTTPException(status_code=400, detail="Unsupported file type. Please upload an Excel file.")
+
+    try:
+        engine = "xlrd" if suffix == ".xls" else "openpyxl"
+        xl = pd.ExcelFile(dest, engine=engine)
         sheets = xl.sheet_names
         first_sheet = sheets[0]
         df = xl.parse(first_sheet)
-    else:
-        raise HTTPException(status_code=400, detail="Unsupported file type. Please upload an Excel file.")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Excelファイルの読み込みに失敗しました: {e}")
 
     file_id = session_store.new_session(df, sheets, dest, first_sheet)
     return {
@@ -140,12 +147,19 @@ async def upload_join_file(file: UploadFile = File(...), sheet_name: str = Form(
     contents = await file.read()
     suffix = Path(file.filename or "join.xlsx").suffix.lower()
     dest = UPLOAD_DIR / f"{__import__('uuid').uuid4()}{suffix}"
-    dest.write_bytes(contents)
+    try:
+        dest.write_bytes(contents)
+    except OSError as e:
+        raise HTTPException(status_code=500, detail=f"ファイル保存エラー: {e}")
 
-    xl = pd.ExcelFile(dest, engine="openpyxl")
-    sheets = xl.sheet_names
-    selected = sheet_name if sheet_name in sheets else sheets[0]
-    df = xl.parse(selected)
+    try:
+        engine = "xlrd" if suffix == ".xls" else "openpyxl"
+        xl = pd.ExcelFile(dest, engine=engine)
+        sheets = xl.sheet_names
+        selected = sheet_name if sheet_name in sheets else sheets[0]
+        df = xl.parse(selected)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Excelファイルの読み込みに失敗しました: {e}")
 
     file_id = session_store.new_session(df, sheets, dest, selected)
     return {
