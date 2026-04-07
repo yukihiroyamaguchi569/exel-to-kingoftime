@@ -87,7 +87,7 @@ def validate_shift_data(df: pd.DataFrame) -> list[dict]:
         checks.append({"type": "ok", "label": "職員番号列", "message": "空セルなし"})
 
     # 2〜4桁の数字（職員番号）の割合
-    num_match = first_col.astype(str).str.strip().apply(lambda x: bool(re.match(r'^\d{2,4}$', x))).sum()
+    num_match = first_col.astype(str).str.strip().str.match(r'^\d{2,4}$').sum()
     num_ratio = num_match / total_cells if total_cells > 0 else 0
     if num_ratio >= 0.9:
         checks.append({"type": "ok", "label": "職員番号列の値", "message": f"2〜4桁の値を確認（{int(num_match)}/{total_cells}件）"})
