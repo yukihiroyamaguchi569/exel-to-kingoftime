@@ -184,12 +184,6 @@
 
     <!-- Pipeline steps -->
     <div class="steps-list">
-      <template x-if="steps.length === 0">
-        <div style="color:var(--text-muted);font-size:13px;text-align:center;padding:20px 0;">
-          ステップを追加して変換を始めましょう
-        </div>
-      </template>
-
       <template x-for="(step, idx) in steps" :key="idx">
         <div class="step-card">
           <!-- Step header -->
@@ -475,18 +469,27 @@
       </template>
     </div><!-- /steps-list -->
 
-    <!-- Add step -->
+    <!-- Add step (collapsible) -->
     <div class="add-step-area">
-      <select x-model="selectedStepType" style="flex:1;">
-        <template x-for="st in stepTypes" :key="st.value">
-          <option :value="st.value" x-text="st.label"></option>
-        </template>
-      </select>
       <button
-        class="btn btn-primary btn-sm"
-        :disabled="!fileId"
-        @click="addStep()"
-      >＋ 追加</button>
+        class="btn btn-ghost btn-sm"
+        style="width:100%;color:var(--text-muted);font-size:12px;"
+        @click="showAddStep = !showAddStep"
+      >
+        <span x-text="showAddStep ? '▲ カスタムステップを閉じる' : '＋ カスタムステップを追加'"></span>
+      </button>
+      <div x-show="showAddStep" style="display:flex;gap:6px;margin-top:6px;">
+        <select x-model="selectedStepType" style="flex:1;">
+          <template x-for="st in stepTypes" :key="st.value">
+            <option :value="st.value" x-text="st.label"></option>
+          </template>
+        </select>
+        <button
+          class="btn btn-primary btn-sm"
+          :disabled="!fileId"
+          @click="addStep()"
+        >追加</button>
+      </div>
     </div>
 
     <!-- Export action -->

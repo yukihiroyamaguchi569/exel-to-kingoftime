@@ -46,6 +46,7 @@ document.addEventListener('alpine:init', () => {
     saveTableName: '',
     savingTable: false,
     loadedFromSaved: false,
+    showAddStep: false,
 
     // ── init ─────────────────────────────────────────────────────────────────
     async init() {
