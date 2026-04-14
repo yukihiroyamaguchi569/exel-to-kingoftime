@@ -98,7 +98,15 @@ def validate_shift_data(df: pd.DataFrame) -> list[dict]:
 
 
 def _df_to_preview(df: pd.DataFrame) -> dict:
-    preview = df.head(PREVIEW_ROWS).fillna("").astype(str)
+    preview = df.head(PREVIEW_ROWS).copy()
+    for col in preview.columns:
+        if pd.api.types.is_float_dtype(preview[col]):
+            preview[col] = preview[col].map(
+                lambda v: pd.NA if pd.isna(v)
+                else int(v) if float(v).is_integer()
+                else v
+            )
+    preview = preview.fillna("").astype(str)
     return {
         "columns": list(df.columns),
         "rows": preview.values.tolist(),

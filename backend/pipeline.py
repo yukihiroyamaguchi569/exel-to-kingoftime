@@ -93,12 +93,23 @@ def _left_join(df: pd.DataFrame, step: LeftJoinStep) -> pd.DataFrame:
     return result
 
 
+def _safe_str(values: pd.Series) -> pd.Series:
+    """float列の整数相当値(12.0等)を小数点なしで文字列化する。NaNはpd.NAのまま。"""
+    if pd.api.types.is_float_dtype(values):
+        return values.map(
+            lambda v: pd.NA if pd.isna(v)
+            else str(int(v)) if float(v).is_integer()
+            else str(v)
+        )
+    return values.map(lambda v: pd.NA if pd.isna(v) else str(v))
+
+
 def _prepend_yearmonth(df: pd.DataFrame, step: PrependYearMonthStep) -> pd.DataFrame:
     if step.column not in df.columns:
         return df
     df = df.copy()
     prefix = f"{step.year:04d}{step.month:02d}"
-    df[step.column] = prefix + df[step.column].astype(str)
+    df[step.column] = prefix + _safe_str(df[step.column])
     return df
 
 
@@ -106,7 +117,7 @@ def _zero_pad(df: pd.DataFrame, step: ZeroPadStep) -> pd.DataFrame:
     if step.column not in df.columns:
         return df
     df = df.copy()
-    df[step.column] = df[step.column].astype(str).str.zfill(step.width)
+    df[step.column] = _safe_str(df[step.column]).str.zfill(step.width)
     return df
 
 
